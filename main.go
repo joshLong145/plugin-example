@@ -14,7 +14,6 @@ import (
 
 	hplugin "github.com/hashicorp/go-plugin"
 
-	ignitecmd "github.com/ignite/cli/ignite/cmd"
 	"github.com/ignite/cli/ignite/services/plugin"
 )
 
@@ -38,7 +37,15 @@ type p struct{}
 
 func (p) Commands() []plugin.Command {
 	// TODO: write your command list here
-	return []plugin.Command{}
+	return []plugin.Command{
+		{
+			Use:               "ipfs",
+			PlaceCommandUnder: "ignite",
+			Commands: []plugin.Command{
+				{Use: "shutdown"},
+			},
+		},
+	}
 }
 
 func (p) Hooks() []plugin.Hook {
@@ -55,24 +62,18 @@ func (p) Hooks() []plugin.Hook {
 }
 
 func (p) Execute(cmd plugin.Command, args []string) error {
-	// TODO: write command execution here
-	fmt.Printf("Hello I'm the test-plugin plugin!\nargs=%v, with=%v\n", args, cmd.With)
-
-	// This is how the plugin can access the chain:
-	c, err := ignitecmd.NewChainWithHomeFlags(cmd.CobraCmd)
-	if err != nil {
-		return err
-	}
-	_ = c
-
 	// According to the number of declared commands, you may need a switch:
 	switch cmd.Use {
-	case "add":
-		fmt.Println("Adding stuff...")
-	case "list":
-		fmt.Println("Listing stuff...")
-	case "delete":
-		fmt.Println("Deleting stuff...")
+	case "shutdown":
+		fmt.Printf("Killing ipfs daemon")
+		_, err := exec.Command("kubo/ipfs", "shutdown").Output()
+		if err != nil {
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Println("done killing ipfs daemon")
 	}
 	return nil
 }
