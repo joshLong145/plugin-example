@@ -35,33 +35,33 @@ func init() {
 
 type p struct{}
 
-func (p) Commands() []plugin.Command {
+func (p) Manifest() (plugin.Manifest, error) {
 	// TODO: write your command list here
-	return []plugin.Command{
-		{
-			Use:               "ipfs",
-			PlaceCommandUnder: "ignite",
-			Commands: []plugin.Command{
-				{Use: "shutdown"},
+	return plugin.Manifest{
+		Name: "example-plugin",
+		Commands: []plugin.Command{
+			{
+				Use:               "ipfs",
+				PlaceCommandUnder: "ignite",
+				Commands: []plugin.Command{
+					{Use: "shutdown"},
+				},
 			},
 		},
-	}
+		Hooks: []plugin.Hook{
+			{
+				Name:        "my-hook-serve",
+				PlaceHookOn: "ignite chain serve",
+			},
+			{
+				Name:        "my-hook-build",
+				PlaceHookOn: "ignite chain build",
+			},
+		},
+	}, nil
 }
 
-func (p) Hooks() []plugin.Hook {
-	return []plugin.Hook{
-		{
-			Name:        "my-hook-serve",
-			PlaceHookOn: "ignite chain serve",
-		},
-		{
-			Name:        "my-hook-build",
-			PlaceHookOn: "ignite chain build",
-		},
-	}
-}
-
-func (p) Execute(cmd plugin.Command, args []string) error {
+func (p) Execute(cmd plugin.ExecutedCommand) error {
 	// According to the number of declared commands, you may need a switch:
 	switch cmd.Use {
 	case "shutdown":
@@ -78,7 +78,8 @@ func (p) Execute(cmd plugin.Command, args []string) error {
 	return nil
 }
 
-func (p) ExecuteHookPre(hook plugin.Hook, args []string) error {
+func (p) ExecuteHookPre(hook plugin.ExecutedHook) error {
+	fmt.Println(hook.Name)
 	switch hook.Name {
 	case "my-hook-build":
 		err := resolveFiles()
@@ -101,14 +102,14 @@ func (p) ExecuteHookPre(hook plugin.Hook, args []string) error {
 
 		fmt.Printf("daemon pid %d\n", ipfs_process.Process.Pid)
 	default:
-		return fmt.Errorf("hook not defined")
+		return fmt.Errorf("hook not defined %s", hook.Name)
 	}
 
 	return nil
 }
 
-func (p) ExecuteHookPost(hook plugin.Hook, args []string) error {
-	switch hook.Name {
+func (p) ExecuteHookPost(hook plugin.ExecutedHook) error {
+	switch hook.Hook.Name {
 	case "my-hook-build":
 	case "my-hook-serve":
 		fmt.Printf(`post event triggered for: %s\n`, hook.Name)
@@ -119,8 +120,8 @@ func (p) ExecuteHookPost(hook plugin.Hook, args []string) error {
 	return nil
 }
 
-func (p) ExecuteHookCleanUp(hook plugin.Hook, args []string) error {
-	switch hook.Name {
+func (p) ExecuteHookCleanUp(hook plugin.ExecutedHook) error {
+	switch hook.Hook.Name {
 	case "my-hook-build":
 	case "my-hook-serve":
 		fmt.Println("Cleaning Up tmp directory")
