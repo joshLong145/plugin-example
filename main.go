@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	hplugin "github.com/hashicorp/go-plugin"
 
+	"github.com/ignite/cli/ignite/services/chain"
 	"github.com/ignite/cli/ignite/services/plugin"
 )
 
@@ -29,14 +31,14 @@ var (
 )
 
 func init() {
-	gob.Register(plugin.Command{})
-	gob.Register(plugin.Hook{})
+	gob.Register(plugin.Manifest{})
+	gob.Register(plugin.ExecutedCommand{})
+	gob.Register(plugin.ExecutedHook{})
 }
 
 type p struct{}
 
 func (p) Manifest() (plugin.Manifest, error) {
-	// TODO: write your command list here
 	return plugin.Manifest{
 		Name: "example-plugin",
 		Commands: []plugin.Command{
@@ -79,7 +81,7 @@ func (p) Execute(cmd plugin.ExecutedCommand) error {
 }
 
 func (p) ExecuteHookPre(hook plugin.ExecutedHook) error {
-	fmt.Println(hook.Name)
+	fmt.Printf("hook %s", hook.Name)
 	switch hook.Name {
 	case "my-hook-build":
 		err := resolveFiles()
@@ -240,6 +242,21 @@ func extractTar(stream io.Reader) error {
 	}
 
 	return nil
+}
+
+func getChain(cmd plugin.ExecutedCommand, chainOption ...chain.Option) (*chain.Chain, error) {
+	var (
+		home, _ = cmd.Flags().GetString("home")
+		path, _ = cmd.Flags().GetString("path")
+	)
+	if home != "" {
+		chainOption = append(chainOption, chain.HomePath(home))
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	return chain.New(absPath, chainOption...)
 }
 
 func main() {
