@@ -47,16 +47,17 @@ func (p) Manifest() (plugin.Manifest, error) {
 				PlaceCommandUnder: "ignite",
 				Commands: []plugin.Command{
 					{Use: "shutdown"},
+					{Use: "restart"},
 				},
 			},
 		},
 		Hooks: []plugin.Hook{
 			{
-				Name:        "my-hook-serve",
+				Name:        "serve",
 				PlaceHookOn: "ignite chain serve",
 			},
 			{
-				Name:        "my-hook-build",
+				Name:        "build",
 				PlaceHookOn: "ignite chain build",
 			},
 		},
@@ -68,7 +69,7 @@ func (p) Execute(cmd plugin.ExecutedCommand) error {
 	switch cmd.Use {
 	case "shutdown":
 		fmt.Printf("Killing ipfs daemon")
-		_, err := exec.Command("kubo/ipfs", "shutdown").Output()
+		err := ipfs_process.Process.Kill()
 		if err != nil {
 			return err
 		}
@@ -76,6 +77,21 @@ func (p) Execute(cmd plugin.ExecutedCommand) error {
 			return err
 		}
 		fmt.Println("done killing ipfs daemon")
+	case "restart":
+		fmt.Println("Restarting ipfs host")
+		if ipfs_process != nil {
+			err := ipfs_process.Process.Kill()
+			if err != nil {
+				return err
+			}
+		}
+
+		ipfs_process = exec.Command("kubo/ipfs", "daemon")
+		err := ipfs_process.Start()
+		if err != nil {
+			return err
+		}
+
 	}
 	return nil
 }
@@ -83,13 +99,13 @@ func (p) Execute(cmd plugin.ExecutedCommand) error {
 func (p) ExecuteHookPre(hook plugin.ExecutedHook) error {
 	fmt.Printf("hook %s", hook.Name)
 	switch hook.Name {
-	case "my-hook-build":
+	case "build":
 		err := resolveFiles()
 		if err != nil {
 			return err
 		}
 		fmt.Println(`Kubo IPFS has been resolved to "kubo/"`)
-	case "my-hook-serve":
+	case "serve":
 		err := resolveFiles()
 		if err != nil {
 			return err
@@ -112,8 +128,8 @@ func (p) ExecuteHookPre(hook plugin.ExecutedHook) error {
 
 func (p) ExecuteHookPost(hook plugin.ExecutedHook) error {
 	switch hook.Hook.Name {
-	case "my-hook-build":
-	case "my-hook-serve":
+	case "build":
+	case "serve":
 		fmt.Printf(`post event triggered for: %s\n`, hook.Name)
 	default:
 		return fmt.Errorf("hook not defined")
@@ -124,8 +140,8 @@ func (p) ExecuteHookPost(hook plugin.ExecutedHook) error {
 
 func (p) ExecuteHookCleanUp(hook plugin.ExecutedHook) error {
 	switch hook.Hook.Name {
-	case "my-hook-build":
-	case "my-hook-serve":
+	case "build":
+	case "serve":
 		fmt.Println("Cleaning Up tmp directory")
 		err := os.Remove("tmp/ipfs.tar")
 		if err != nil {
@@ -192,6 +208,7 @@ func resolveFiles() error {
 		if err != nil {
 			return err
 		}
+
 		os.Chmod("kubo/ipfs", 0777)
 	}
 
@@ -234,7 +251,7 @@ func extractTar(stream io.Reader) error {
 
 		default:
 			log.Fatalf(
-				"ExtractTarGz: uknown type: %s in %s",
+				"ExtractTarGz: uknown type: %d in %s",
 				header.Typeflag,
 				header.Name)
 		}
